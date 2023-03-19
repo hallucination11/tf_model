@@ -1,2 +1,1 @@
-int_features = []
-str_features = []
+int_features = ['I' + str(i) for i in range(1, 14)]
