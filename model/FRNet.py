@@ -138,12 +138,30 @@ class FRNet(Model):
                                                                                  default_value=default_value)
             return tf.feature_column.embedding_column(identity_column, dimension=dimension)
 
+        def get_bucket_column(key, boundary, dimension):
+            num_col = tf.feature_column.numeric_column(key)
+            bucket_column = tf.feature_column.bucketized_column(num_col, boundaries=boundary)
+            return tf.feature_column.embedding_column(bucket_column, dimension=dimension)
+
         cnt_feature_columns = {
             "uid": get_categorical_hash_bucket_column("uid", hash_bucket_size=2000, dimension=4, dtype=tf.int64),
             "item": get_categorical_hash_bucket_column("item", hash_bucket_size=100, dimension=4, dtype=tf.int64),
             "bal": get_bucketized_column("bal", boundaries=[10002.0, 14158.35, 18489.0, 23177.0, 27839.8, 32521.5,
                                                             36666.7, 41386.9, 45919.6, 50264.55, 54345.0], dimension=4),
-            "gender": get_categorical_hash_bucket_column("gender", hash_bucket_size=4, dimension=1, dtype=tf.int64)
+            "gender": get_categorical_hash_bucket_column("gender", hash_bucket_size=4, dimension=1, dtype=tf.int64),
+            "brand_id": get_categorical_hash_bucket_column("brand_id", hash_bucket_size=1000, dimension=6,
+                                                           dtype=tf.int64),
+            "prod_id": get_categorical_hash_bucket_column("prod_id", hash_bucket_size=1000, dimension=3,
+                                                          dtype=tf.int64),
+            "age": get_categorical_hash_bucket_column("age", hash_bucket_size=1000, dimension=3, dtype=tf.int64),
+            "mobile_level": get_categorical_hash_bucket_column("mobile_level", hash_bucket_size=4, dimension=2,
+                                                               dtype=tf.int64),
+            "item_price": get_bucket_column("item_price",
+                                            boundary=[0.0200, 47.4695, 98.1180, 148.7500, 201.6680, 258.0025, 306.8860,
+                                                      354.4485, 404.2520, 456.1920, 508.1800, 555.3115, 604.0460,
+                                                      654.5650, 703.6780, 754.3950, 807.0580, 855.0515, 902.4010,
+                                                      951.3025], dimension = 4)
+
         }
 
         all_feature_column = {}
@@ -161,7 +179,7 @@ class FRNet(Model):
             params={
                 'hidden_units': hidden_layers,
                 'tower_units': tower_layers,
-                'feature_columns': all_feature_column,
+                'feature_columns': all_feature_column
                 # 'weight_column': weight_column,
             })
 
