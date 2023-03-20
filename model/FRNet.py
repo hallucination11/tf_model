@@ -1,5 +1,6 @@
 from model.parent_model import Model
 import tensorflow as tf
+import random
 
 
 class FRNet(Model):
@@ -11,18 +12,13 @@ class FRNet(Model):
             feature_square_embeddings = []
             feature_embeddings = []
             self.embedding_upload_hook.item = labels
-            Utower_features = ['uid', 'gender', 'bal']
-            Itower_features = ['item']
-            CrossTower_features = ['uid', 'item']
+            Utower_features = ['uid', 'gender', 'bal', 'mobile_level', 'age']
+            Itower_features = ['item', 'brand_id', 'prod_id', 'item_price']
 
             # utower
             for feature in Utower_features:
                 feature_emb = tf.compat.v1.feature_column.input_layer(features, params['feature_columns'][feature])
                 user_feature_embeddings.append(feature_emb)
-                if feature == 'uid':
-                    cross_emb_1 = feature_emb
-                    feature_square_embeddings.append(tf.square(feature_emb))
-                    feature_embeddings.append(cross_emb_1)
 
             uTower_input = tf.concat(user_feature_embeddings, axis=1, name='utower')
 
@@ -35,16 +31,22 @@ class FRNet(Model):
             for feature in Itower_features:
                 feature_emb = tf.compat.v1.feature_column.input_layer(features, params['feature_columns'][feature])
                 item_feature_embeddings.append(feature_emb)
-                if feature == 'item':
-                    feature_square_embeddings.append(tf.square(feature_emb))
-                    feature_embeddings.append(feature_emb)
 
-            iTower_input = tf.concat(item_feature_embeddings, axis=1, name='itower')
+            item_feature_embedding_1 = random.sample(item_feature_embeddings, 3)
+            item_feature_embedding_2 = random.sample(item_feature_embeddings, 3)
+
+            iTower_input_1 = tf.concat(item_feature_embedding_1, axis=1, name='itower_1')
+            iTower_input_2 = tf.concat(item_feature_embedding_2, axis=1, name='itower_2')
 
             for unit in params['tower_units']:
-                iTower_output = tf.compat.v1.layers.dense(iTower_input, units=unit, activation=tf.nn.relu)
-                iTower_output = tf.compat.v1.layers.batch_normalization(iTower_output)
-                iTower_output = tf.compat.v1.layers.dropout(iTower_output)
+                iTower_output_1 = tf.compat.v1.layers.dense(iTower_input_1, units=unit, activation=tf.nn.relu)
+                iTower_output_1 = tf.compat.v1.layers.batch_normalization(iTower_output_1)
+                iTower_output_1 = tf.compat.v1.layers.dropout(iTower_output_1)
+
+            for unit in params['tower_units']:
+                iTower_output_2 = tf.compat.v1.layers.dense(iTower_input_2, units=unit, activation=tf.nn.relu)
+                iTower_output_2 = tf.compat.v1.layers.batch_normalization(iTower_output_2)
+                iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
 
             # crossTower
             # 此处为user和item的交叉特征和统计特征，这里用item和uid交叉
@@ -56,18 +58,6 @@ class FRNet(Model):
             final_input = tf.concat(uTower_output + iTower_output + fm_output, axis=1, name='final_logits')
 
             tf.compat.v1.logging.info("output shape={}".format(final_input.shape))
-
-            for unit in params['hidden_units']:
-                application_output = tf.compat.v1.layers.dense(final_input, units=unit, activation=tf.nn.relu)
-                application_output = tf.compat.v1.layers.batch_normalization(application_output)
-                application_output = tf.compat.v1.layers.dropout(application_output)
-
-            application_logit = tf.compat.v1.layers.dense(application_output, units=1, activation=tf.nn.relu)
-
-            for unit in params['hidden_units']:
-                approval_output = tf.compat.v1.layers.dense(final_input, units=unit, activation=tf.nn.relu)
-                approval_output = tf.compat.v1.layers.batch_normalization(approval_output)
-                approval_output = tf.compat.v1.layers.dropout(approval_output)
 
             approval_logit = tf.compat.v1.layers.dense(approval_output, units=1, activation=tf.nn.relu)
 
