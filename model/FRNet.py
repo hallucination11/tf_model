@@ -48,7 +48,9 @@ class FRNet(Model):
                 iTower_output_2 = tf.compat.v1.layers.batch_normalization(iTower_output_2)
                 iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
 
-            cl_item_loss = tf.square(iTower_output_1 - iTower_output_2)
+            a = tf.multiply(iTower_output_1, tf.compat.v1.random_shuffle(iTower_output_1) / 0.05)
+            b = tf.multiply(iTower_output_1, iTower_output_2) / 0.05
+            exit()
 
             # crossTower
             # 此处为user和item的交叉特征和统计特征，这里用item和uid交叉
