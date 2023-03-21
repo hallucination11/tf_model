@@ -26,6 +26,7 @@ class FRNet(Model):
                 uTower_output = tf.compat.v1.layers.dense(uTower_input, units=unit, activation=tf.nn.relu)
                 uTower_output = tf.compat.v1.layers.batch_normalization(uTower_output)
                 uTower_output = tf.compat.v1.layers.dropout(uTower_output)
+                uTower_output = tf.nn.l2_normalize(uTower_output)
 
             # itower
             for feature in Itower_features:
@@ -42,14 +43,21 @@ class FRNet(Model):
                 iTower_output_1 = tf.compat.v1.layers.dense(iTower_input_1, units=unit, activation=tf.nn.relu)
                 iTower_output_1 = tf.compat.v1.layers.batch_normalization(iTower_output_1)
                 iTower_output_1 = tf.compat.v1.layers.dropout(iTower_output_1)
+                iTower_output_1 = tf.nn.l2_normalize(iTower_output_1)
 
-            for unit in params['tower_units']:
                 iTower_output_2 = tf.compat.v1.layers.dense(iTower_input_2, units=unit, activation=tf.nn.relu)
                 iTower_output_2 = tf.compat.v1.layers.batch_normalization(iTower_output_2)
                 iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
+                iTower_output_2 = tf.nn.l2_normalize(iTower_output_2)
 
-            a = tf.multiply(iTower_output_1, tf.compat.v1.random_shuffle(iTower_output_1) / 0.05)
-            b = tf.multiply(iTower_output_1, iTower_output_2) / 0.05
+
+            # maxmize
+            maximum = tf.multiply(iTower_output_1, tf.compat.v1.random_shuffle(iTower_output_1) / params['temperature'])
+
+            # minimize
+            minimum = tf.multiply(iTower_output_1, iTower_output_2) / params['temperature']
+            cl_logit = -tf.reduce_mean(tf.compat.v1.log(tf.exp(maximum) / tf.exp(minimum)))
+            print(cl_logit)
             exit()
 
             # crossTower
@@ -173,8 +181,9 @@ class FRNet(Model):
             params={
                 'hidden_units': hidden_layers,
                 'tower_units': tower_layers,
-                'feature_columns': all_feature_column
+                'feature_columns': all_feature_column,
                 # 'weight_column': weight_column,
+                'temperature': self.high_param['temperature']
             })
 
         return estimator
