@@ -48,6 +48,8 @@ class FRNet(Model):
                 iTower_output_2 = tf.compat.v1.layers.batch_normalization(iTower_output_2)
                 iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
 
+            cl_item_loss = tf.square(iTower_output_1 - iTower_output_2)
+
             # crossTower
             # 此处为user和item的交叉特征和统计特征，这里用item和uid交叉
             sum_embedding_then_square = tf.square(tf.add_n(feature_embeddings))
