@@ -1,10 +1,32 @@
 from model.parent_model import Model
 import tensorflow as tf
 import random
+from tensorflow.python.keras.layers import Lambda
 
 
-class FRNet(Model):
+class CL_DSSM(Model):
     def get_model_fn(self):
+
+        def _cosine(query_encoder, doc_encoder, params):
+            NEG = params['NEG']
+            doc_encoder_fd = doc_encoder
+            for i in range(NEG):
+                ss = tf.gather(doc_encoder, tf.random.shuffle(tf.range(tf.shape(doc_encoder)[0])))
+                doc_encoder_fd = tf.concat([doc_encoder_fd, ss], axis=0)
+            query_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(query_encoder), axis=1, keepdims=True)),
+                                 [NEG + 1, 1])
+            doc_norm = tf.sqrt(tf.reduce_sum(tf.square(doc_encoder_fd), axis=1, keepdims=True))
+            query_encoder_fd = tf.tile(query_encoder, [NEG + 1, 1])
+            prod = tf.reduce_sum(tf.multiply(query_encoder_fd, doc_encoder_fd, name="sim-multiply"), axis=1,
+                                 keepdims=True)
+            norm_prod = tf.multiply(query_norm, doc_norm)
+            cos_sim_raw = tf.truediv(prod, norm_prod)
+            cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [NEG + 1, -1])) * 20
+
+            prob = tf.nn.softmax(cos_sim, name="sim-softmax")
+            hit_prob = tf.slice(prob, [0, 0], [-1, 1], name="sim-slice")
+            loss = -tf.reduce_mean(tf.compat.v1.log(hit_prob), name="sim-mean")
+            return loss
 
         def model_fn(features, labels, mode, params):
             user_feature_embeddings = []
@@ -36,10 +58,16 @@ class FRNet(Model):
             item_feature_embedding_1 = random.sample(item_feature_embeddings, 3)
             item_feature_embedding_2 = random.sample(item_feature_embeddings, 3)
 
+            iTower_input_origin = tf.concat(item_feature_embeddings, axis=1, name='itower_origin')
             iTower_input_1 = tf.concat(item_feature_embedding_1, axis=1, name='itower_1')
             iTower_input_2 = tf.concat(item_feature_embedding_2, axis=1, name='itower_2')
 
             for unit in params['tower_units']:
+                iTower_output_origin = tf.compat.v1.layers.dense(iTower_input_origin, units=unit, activation=tf.nn.relu)
+                iTower_output_origin = tf.compat.v1.layers.batch_normalization(iTower_output_origin)
+                iTower_output_origin = tf.compat.v1.layers.dropout(iTower_output_origin)
+                iTower_output_origin = tf.nn.l2_normalize(iTower_output_origin)
+
                 iTower_output_1 = tf.compat.v1.layers.dense(iTower_input_1, units=unit, activation=tf.nn.relu)
                 iTower_output_1 = tf.compat.v1.layers.batch_normalization(iTower_output_1)
                 iTower_output_1 = tf.compat.v1.layers.dropout(iTower_output_1)
@@ -50,8 +78,7 @@ class FRNet(Model):
                 iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
                 iTower_output_2 = tf.nn.l2_normalize(iTower_output_2)
 
-
-            # maxmize
+            # maximize
             maximum = tf.multiply(iTower_output_1, tf.compat.v1.random_shuffle(iTower_output_1) / params['temperature'])
 
             # minimize
@@ -118,7 +145,7 @@ class FRNet(Model):
                 return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops={'approval_auc': approval_auc,
                                                                                     'application_auc': application_auc})
 
-        return model_fn
+            return model_fn
 
     def get_estimator(self):
         # 商品id类特征
@@ -162,7 +189,7 @@ class FRNet(Model):
                                             boundary=[0.0200, 47.4695, 98.1180, 148.7500, 201.6680, 258.0025, 306.8860,
                                                       354.4485, 404.2520, 456.1920, 508.1800, 555.3115, 604.0460,
                                                       654.5650, 703.6780, 754.3950, 807.0580, 855.0515, 902.4010,
-                                                      951.3025], dimension = 4)
+                                                      951.3025], dimension=4)
 
         }
 

@@ -6,7 +6,7 @@ from collections import Counter
 from tensorflow.python.keras.layers import Dense, Lambda
 
 from tensorflow.python.keras.layers import (Concatenate, Dense, Permute, multiply, Flatten)
-from tensorflow.keras.layers import Embedding
+from tensorflow.python.keras.layers import Embedding
 
 
 class Model(collections.namedtuple("Model", ["model_name",

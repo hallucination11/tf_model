@@ -12,7 +12,7 @@ from utils import batch_train_files
 import time
 from collections import defaultdict
 import argparse
-from model.FRNet import FRNet
+from model.CL_DSSM import CL_DSSM
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 tf.compat.v1.disable_eager_execution()
@@ -127,8 +127,8 @@ if not os.path.exists(model_dir):
 if not os.path.exists(saved_model_dir):
     os.makedirs(saved_model_dir)
 
-if args.model == "FRNet":
-    model = FRNet("FRNet", model_dir=model_dir, embedding_upload_hook=new_hook, high_param=high_param)
+if args.model == "CL_DSSM":
+    model = CL_DSSM("CL_DSSM", model_dir=model_dir, embedding_upload_hook=new_hook, high_param=high_param)
 logger.info("start training {} model".format(args.model))
 
 feature_description = {}
