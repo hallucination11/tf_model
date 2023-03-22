@@ -25,10 +25,10 @@ class CL_DSSM(Model):
 
             prob = tf.nn.softmax(cos_sim, name="sim-softmax")
             hit_prob = tf.slice(prob, [0, 0], [-1, 1], name="sim-slice")
-            loss = -tf.reduce_mean(tf.compat.v1.log(hit_prob), name="sim-mean")
-            return loss
+            return hit_prob
 
         def model_fn(features, labels, mode, params):
+            global iTower_output_1, iTower_output_2, uTower_output, iTower_output_origin
             user_feature_embeddings = []
             item_feature_embeddings = []
             feature_square_embeddings = []
@@ -78,36 +78,24 @@ class CL_DSSM(Model):
                 iTower_output_2 = tf.compat.v1.layers.dropout(iTower_output_2)
                 iTower_output_2 = tf.nn.l2_normalize(iTower_output_2)
 
+            # cl loss
             # maximize
             maximum = tf.multiply(iTower_output_1, tf.compat.v1.random_shuffle(iTower_output_1) / params['temperature'])
 
             # minimize
             minimum = tf.multiply(iTower_output_1, iTower_output_2) / params['temperature']
-            cl_logit = -tf.reduce_mean(tf.compat.v1.log(tf.exp(maximum) / tf.exp(minimum)))
-            print(cl_logit)
-            exit()
 
-            # crossTower
-            # 此处为user和item的交叉特征和统计特征，这里用item和uid交叉
-            sum_embedding_then_square = tf.square(tf.add_n(feature_embeddings))
-            square_embedding_then_sum = tf.add_n(feature_square_embeddings)
-            fm_output = 0.5 * (sum_embedding_then_square - square_embedding_then_sum)
-            fm_output = tf.compat.v1.layers.dense(fm_output, units=params['tower_units'][-1])
+            # main loss
+            main_logit = tf.matmul(uTower_output, iTower_output_origin)
 
-            final_input = tf.concat(uTower_output + iTower_output + fm_output, axis=1, name='final_logits')
+            logits = main_logit
 
-            tf.compat.v1.logging.info("output shape={}".format(final_input.shape))
-
-            approval_logit = tf.compat.v1.layers.dense(approval_output, units=1, activation=tf.nn.relu)
-
-            # 应该先写predict，因为mode位predict或infer时，labels默认为none
+            # 应该先写predict，因为mode为predict或infer时，labels默认为none
             if mode == tf.estimator.ModeKeys.PREDICT:
-                application_pred = tf.sigmoid(application_logit, name='application_pred')
-                approval_pred = tf.sigmoid(approval_logit, name='approval_pred')
+                pred = tf.sigmoid(logits, name='application_pred')
 
                 predictions = {
-                    'application_probabilities': application_pred,
-                    'approval_probabilities': approval_pred
+                    'probabilities': pred
                 }
                 export_outputs = {
                     'prediction': tf.estimator.export.PredictOutput(predictions)
@@ -115,13 +103,9 @@ class CL_DSSM(Model):
                 return tf.estimator.EstimatorSpec(mode, predictions=predictions, export_outputs=export_outputs)
 
             # compute loss
-            application_pred = tf.sigmoid(application_logit, name='application_pred')
-            application_loss = tf.compat.v1.losses.log_loss(labels, application_pred)
-
-            approval_pred = tf.sigmoid(approval_logit, name='approval_pred')
-            approval_loss = tf.compat.v1.losses.log_loss(labels, approval_pred)
-
-            loss = application_loss + approval_loss
+            main_loss = tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=main_logit)
+            cl_loss = -tf.reduce_mean(tf.compat.v1.log(tf.exp(maximum) / tf.exp(minimum)))
+            loss = main_loss + cl_loss
 
             if mode == tf.estimator.ModeKeys.TRAIN:
                 # optimizer
@@ -135,15 +119,10 @@ class CL_DSSM(Model):
                 return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
 
             if mode == tf.estimator.ModeKeys.EVAL:
-                application_pred = tf.sigmoid(application_logit, name='click_pred')
-                application_pred = tf.argmax(application_pred, axis=-1)
-                application_auc = tf.compat.v1.metrics.auc(labels=labels, predictions=application_pred)
-
-                approval_pred = tf.sigmoid(approval_logit, name='click_pred')
-                approval_pred = tf.argmax(approval_pred, axis=-1)
-                approval_auc = tf.compat.v1.metrics.auc(labels=labels, predictions=approval_pred)
-                return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops={'approval_auc': approval_auc,
-                                                                                    'application_auc': application_auc})
+                pred = tf.sigmoid(main_logit, name='click_pred')
+                pred = tf.argmax(pred, axis=-1)
+                auc = tf.compat.v1.metrics.auc(labels=labels, predictions=pred)
+                return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops={'auc': auc})
 
             return model_fn
 
